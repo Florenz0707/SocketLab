@@ -1,8 +1,8 @@
 #include "parse.h"
 
-/**
-* Given a char buffer returns the parsed request headers
-*/
+/*
+ * Given a char buffer returns the parsed request headers
+ */
 Request *parse(const char *buffer, const int size, int socketFd) {
     // Different states in the state machine
     enum {

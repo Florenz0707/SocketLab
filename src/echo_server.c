@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include <string.h>
-#include <parse.h>
+#include "parse.h"
 
 #define ECHO_PORT 9999
 #define BUF_SIZE 4096
@@ -68,6 +68,90 @@ Request *analyze(const char *buffer, const int size) {
     strcpy(request->http_uri, parts[1]);
     strcpy(request->http_version, parts[2]);
     return request;
+}
+
+static Request *resolve(const char *buffer, int size) {
+//    enum {
+//        STATE_START, STATE_CR, STATE_CRLF, STATE_CRLFCR, STATE_CRLFCRLF
+//    };
+//
+//    char buf[8192] = {0};
+//    int i = 0, offset = 0;
+//    int state = STATE_START;
+//
+//    /* First line */
+//    while (state != STATE_CRLFCRLF && i < size) {
+//        char expect = 0;
+//        const char next = buffer[i++];
+//        buf[offset++] = next;
+//        switch (state) {
+//            case STATE_START:
+//            case STATE_CRLF:
+//                expect = '\r';
+//                break;
+//            case STATE_CR:
+//            case STATE_CRLFCR:
+//                expect = '\n';
+//                break;
+//            default:
+//                state = STATE_START;
+//                continue;
+//        }
+//
+//        if (next == expect) state++;
+//        else state = STATE_START;
+//    }
+//
+//    if (state != STATE_CRLFCRLF) {
+//        fprintf(stdout, "Not reach STATE_CRLFCRLF, current state: %d\n", state);
+//        return NULL;
+//    }
+
+    Request *request = malloc(sizeof(Request));
+    request->header_count = 0;
+    request->headers = (Request_header *) malloc(sizeof(Request_header) * 1);
+
+    int pre = 0, post = 0, part = 0;
+    for (; post < size; ++post) {
+        if (buf[post] == ' ' || buf[post] == '\r' || buf[post] == '\n') {
+            if (part == 0) strncpy(request->http_method, buf + pre, post - pre);
+            else if (part == 1) strncpy(request->http_uri, buf + pre, post - pre);
+            else strncpy(request->http_version, buf + pre, post - pre);
+
+            part++;
+            pre = post + 1;
+        }
+        if (buf[post] == '\r' || buf[post] == '\n' || part >= 3) break;
+    }
+    if (part < 3) {
+        fprintf(stdout, "Parts are not enough\n");
+        return NULL;
+    }
+    return request;
+}
+
+int isRequestValid(Request *request) {
+    /*
+     * if request is good, return 0;
+     * if request is not implemented, return 1;
+     * if request is bad(invalid), return 2;
+     */
+    if (request == NULL) return 2;
+
+    fprintf(stdout, "method:%s, uri:%s, version:%s.\n",
+            request->http_method, request->http_uri, request->http_version);
+    if (strlen(request->http_method) == 0 || strlen(request->http_uri) == 0 ||
+        strlen(request->http_version) == 0)
+        return 2;
+    if (request->http_uri[0] != '/') return 2;
+    if (strcmp(request->http_version, "HTTP/1.1") != 0) return 2;
+
+    if (strcmp(request->http_method, "GET") == 0 ||
+        strcmp(request->http_method, "POST") == 0 ||
+        strcmp(request->http_method, "HEAD") == 0)
+        return 0;
+
+    return 1;
 }
 
 int main(int argc, char *argv[]) {
@@ -137,33 +221,50 @@ int main(int argc, char *argv[]) {
             if (readret < 0) break;
             fprintf(stdout, "Received (total %d bytes):%s \n", readret, buf);
             /* parse request */
-            Request *request = analyze(buf, readret);
-
-            fprintf(stdout, "version: %s\nmethod: %s\nuri: %s\n",
-                    request->http_version, request->http_method, request->http_uri);
-
-            if (isBadRequest(request)) {
-                fprintf(stdout, "Bad request\n");
-                strcpy(msg, "HTTP/1.1 400 Bad request\r\n\r\n");
-            } else if (strcmp(request->http_method, "GET") == 0 ||
-                       strcmp(request->http_method, "POST") == 0 ||
-                       strcmp(request->http_method, "HEAD") == 0) {
+            // Request *request = analyze(buf, readret);
+            Request *request = resolve(buf, readret);
+            int status = isRequestValid(request);
+            if (status == 0) {
                 fprintf(stdout, "Good Request, echo back\n");
                 strcpy(msg, buf);
-                strcat(msg, "(echo back)");
-            } else {
+                strcat(msg, "(echo back)\r\n");
+            } else if (status == 1) {
                 fprintf(stdout, "Not Implemented\n");
                 strcpy(msg, "HTTP/1.1 501 Not Implemented\r\n\r\n");
+            } else {
+                fprintf(stdout, "Bad request\n");
+                strcpy(msg, "HTTP/1.1 400 Bad request\r\n\r\n");
             }
+
+//            if (isBadRequest(request)) {
+//                fprintf(stdout, "Bad request\n");
+//                strcpy(msg, "HTTP/1.1 400 Bad request\r\n\r\n");
+//            } else if (strcmp(request->http_method, "GET") == 0 ||
+//                       strcmp(request->http_method, "POST") == 0 ||
+//                       strcmp(request->http_method, "HEAD") == 0) {
+//                fprintf(stdout, "Good Request, echo back\n");
+//                strcpy(msg, buf);
+//                strcat(msg, "(echo back)");
+//            } else {
+//                fprintf(stdout, "Not Implemented\n");
+//                strcpy(msg, "HTTP/1.1 501 Not Implemented\r\n\r\n");
+//            }
+
+
 
             if (send(client_sock, msg, strlen(msg), 0) < 0) break;
             fprintf(stdout, "Send back\n");
-            /* when client is closing the connection：
-                FIN of client carrys empty，so recv() return 0
-                ACK of server only carrys"(echo back)", so send() return 11
-                ACK of client carrys empty, so recv() return 0
-                Then server finishes closing the connection, recv() and send() return -1
-            */
+            if (request != NULL) {
+                free(request->headers);
+                free(request);
+            }
+            /*
+             * when client is closing the connection：
+             * FIN of client carrys empty，so recv() return 0
+             * ACK of server only carrys"(echo back)", so send() return 11
+             * ACK of client carrys empty, so recv() return 0
+             * Then server finishes closing the connection, recv() and send() return -1
+             */
         }
         /* client closes the connection. server free resources and listen again */
         if (close_socket(client_sock)) {
