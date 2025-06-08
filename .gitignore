@@ -1,5 +1,4 @@
 # Scripts
-docker.sh
-client.sh
+*.sh
 .idea/
 obj/

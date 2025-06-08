@@ -32,42 +32,8 @@ void handle_signal(const int sig) {
 }
 
 void handle_sigpipe(const int sig) {
-    if (sock != -1) {
-        return;
-    }
+    if (sock != -1) return;
     exit(0);
-}
-
-int isBadRequest(Request *request) {
-    if (strlen(request->http_method) == 0 || strlen(request->http_uri) == 0 ||
-        strlen(request->http_version) == 0)
-        return 1;
-    char http[6];
-    strncpy(http, request->http_version, 5);
-    http[5] = '\0';
-    if (strcmp(http, "HTTP/") != 0) return 1;
-    return 0;
-}
-
-Request *analyze(const char *buffer, const int size) {
-    Request *request = malloc(sizeof(Request));
-    int cursor = 0, len = 0, cnt = 0;
-    char parts[5][5000];
-    while (cursor < size) {
-        while (buffer[cursor + len] != ' ' &&
-               buffer[cursor + len] != '\n' && buffer[cursor + len] != '\r')
-            len++;
-        strncpy(parts[cnt], buffer + cursor, len);
-        parts[cnt][len] = '\0';
-        cnt++;
-        if (buffer[cursor + len] == '\n' || buffer[cursor + len] == '\r') break;
-        cursor = cursor + len + 1;
-        len = 0;
-    }
-    strcpy(request->http_method, parts[0]);
-    strcpy(request->http_uri, parts[1]);
-    strcpy(request->http_version, parts[2]);
-    return request;
 }
 
 static Request *resolve(const char *buffer, int size) {
@@ -220,8 +186,8 @@ int main(int argc, char *argv[]) {
             int readret = recv(client_sock, buf, BUF_SIZE, 0);
             if (readret < 0) break;
             fprintf(stdout, "Received (total %d bytes):%s \n", readret, buf);
+
             /* parse request */
-            // Request *request = analyze(buf, readret);
             Request *request = resolve(buf, readret);
             int status = isRequestValid(request);
             if (status == 0) {
@@ -235,22 +201,6 @@ int main(int argc, char *argv[]) {
                 fprintf(stdout, "Bad request\n");
                 strcpy(msg, "HTTP/1.1 400 Bad request\r\n\r\n");
             }
-
-//            if (isBadRequest(request)) {
-//                fprintf(stdout, "Bad request\n");
-//                strcpy(msg, "HTTP/1.1 400 Bad request\r\n\r\n");
-//            } else if (strcmp(request->http_method, "GET") == 0 ||
-//                       strcmp(request->http_method, "POST") == 0 ||
-//                       strcmp(request->http_method, "HEAD") == 0) {
-//                fprintf(stdout, "Good Request, echo back\n");
-//                strcpy(msg, buf);
-//                strcat(msg, "(echo back)");
-//            } else {
-//                fprintf(stdout, "Not Implemented\n");
-//                strcpy(msg, "HTTP/1.1 501 Not Implemented\r\n\r\n");
-//            }
-
-
 
             if (send(client_sock, msg, strlen(msg), 0) < 0) break;
             fprintf(stdout, "Send back\n");
