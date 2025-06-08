@@ -162,7 +162,8 @@ int main(int argc, char *argv[]) {
                 FIN of client carrys empty，so recv() return 0
                 ACK of server only carrys"(echo back)", so send() return 11
                 ACK of client carrys empty, so recv() return 0
-                Then server finishes closing the connection, recv() and send() return -1 */
+                Then server finishes closing the connection, recv() and send() return -1
+            */
         }
         /* client closes the connection. server free resources and listen again */
         if (close_socket(client_sock)) {
@@ -172,6 +173,7 @@ int main(int argc, char *argv[]) {
         }
         fprintf(stdout, "Closed connection from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
     }
+
     close_socket(sock);
     return EXIT_SUCCESS;
 }
