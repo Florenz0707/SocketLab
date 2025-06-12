@@ -6,8 +6,8 @@
 obj/
 
 # Executable files
-echo_client
-echo_server
+liso_client
+liso_server
 example
 
 # Compiled files

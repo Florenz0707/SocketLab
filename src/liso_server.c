@@ -9,7 +9,7 @@
 #include "utils.h"
 
 #define ECHO_PORT 9999
-#define BUF_SIZE 10240
+#define BUF_SIZE 20480
 
 int sock = -1, client_sock = -1;
 char buf[BUF_SIZE];

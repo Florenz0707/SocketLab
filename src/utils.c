@@ -9,7 +9,7 @@
 #include "utils.h"
 #include "parse.h"
 
-#define BUF_SIZE 10240
+#define BUF_SIZE 20480
 #define PATH_LEN 4096
 
 const char *http_version = "HTTP/1.1";
