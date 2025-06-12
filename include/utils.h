@@ -29,6 +29,7 @@ void response505(int client_sock);
 
 int send_nbytes(int sock, const void *p, int nbytes);
 void Send_nbytes(int sock, const void *ptr, int nbytes);
+void pipelining(int client_sock, char *recv_buf, size_t readret);
 void handle_request(int client_sock, char *recv_buf, size_t readret);
 void handle_get(int client_sock, Request *request);
 void handle_head(int client_sock, Request *request);

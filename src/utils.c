@@ -9,7 +9,8 @@
 #include "utils.h"
 #include "parse.h"
 
-#define BUF_SIZE 8192
+#define BUF_SIZE 10240
+#define PATH_LEN 4096
 
 const char *http_version = "HTTP/1.1";
 
@@ -20,6 +21,8 @@ const char *RESPONSE_505 = "HTTP/1.1 505 HTTP Version not supported\r\n\r\n";
 
 FILE *error_log = NULL;
 FILE *access_log = NULL;
+
+void handle_request(int client_sock, char *recv_buf, size_t readret);
 
 void init_logs() {
     error_log = fopen("error.log", "a");
@@ -103,8 +106,29 @@ int send_nbytes(int sock, const void *p, int nbytes) {
 
 void Send_nbytes(int sock, const void *ptr, int nbytes) {
     if (send_nbytes(sock, ptr, nbytes) == 0) return;
-
     fprintf(stdout, "send_nbytes error\n");
+}
+
+void pipelining(int client_sock, char *recv_buf, size_t readret) {
+    int cursor = 0, len = 0, request_cnt = 0;
+    char buf[BUF_SIZE];
+    while (cursor < readret && len < BUF_SIZE) {
+        char cur = recv_buf[cursor++];
+        buf[len++] = cur;
+        if (len >= 4) {
+            if (buf[len - 4] == '\r' && buf[len - 3] == '\n' && buf[len - 2] == '\r' && buf[len - 1] == '\n') {
+                buf[len] = '\0';
+                request_cnt++;
+                handle_request(client_sock, buf, len + 1);
+                memset(buf, 0, sizeof(buf));
+                len = 0;
+            }
+        }
+    }
+    if (request_cnt == 0) {
+        response400(client_sock);
+        log_error("Bad Request");
+    }
 }
 
 void handle_request(int client_sock, char *recv_buf, size_t readret) {
@@ -140,7 +164,7 @@ void handle_request(int client_sock, char *recv_buf, size_t readret) {
 }
 
 void handle_get(int client_sock, Request *request) {
-    char fullpath[1024];
+    char fullpath[PATH_LEN];
     snprintf(fullpath, sizeof(fullpath), "./static_site%s", request->http_uri);
 
     struct stat file_stat;
@@ -175,7 +199,7 @@ void handle_get(int client_sock, Request *request) {
 
     Send_nbytes(client_sock, response, strlen(response));
 
-    char buffer[1024];
+    char buffer[BUF_SIZE];
     ssize_t bytes_read;
     while ((bytes_read = read(file_fd, buffer, sizeof(buffer))) > 0) {
         Send_nbytes(client_sock, buffer, bytes_read);
@@ -186,7 +210,7 @@ void handle_get(int client_sock, Request *request) {
 }
 
 void handle_head(int client_sock, Request *request) {
-    char fullpath[1024];
+    char fullpath[PATH_LEN];
     snprintf(fullpath, sizeof(fullpath), "./static_site%s", request->http_uri);
 
     struct stat file_stat;

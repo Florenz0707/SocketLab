@@ -74,9 +74,10 @@ int main(int argc, char *argv[]) {
     close(file_fd);
 
     int bytes_received;
-    if ((bytes_received = recv(sock, buf, BUF_SIZE, 0)) > 0) {
+    fprintf(stdout, "Receive: \n");
+    while ((bytes_received = recv(sock, buf, BUF_SIZE, 0)) > 0) {
         buf[bytes_received] = '\0';
-        fprintf(stdout, "Received %s", buf);
+        fprintf(stdout, "%s", buf);
     }
 
     freeaddrinfo(servinfo);

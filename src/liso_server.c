@@ -9,7 +9,7 @@
 #include "utils.h"
 
 #define ECHO_PORT 9999
-#define BUF_SIZE 4096
+#define BUF_SIZE 10240
 
 int sock = -1, client_sock = -1;
 char buf[BUF_SIZE];
@@ -96,14 +96,14 @@ int main(int argc, char *argv[]) {
         while (1) {
             memset(buf, 0, BUF_SIZE);
             int readret = recv(client_sock, buf, BUF_SIZE, 0);
-            if (readret < 0)
-                break;
+            if (readret < 0) break;
             if (readret == 0) {
                 fprintf(stdout, "Client disconnected.\n");
                 break;
             }
             fprintf(stdout, "Received (total %d bytes): %s\n", readret, buf);
-            handle_request(client_sock, buf, readret);
+            // handle_request(client_sock, buf, readret);
+            pipelining(client_sock, buf, readret);
         }
 
         if (close_socket(client_sock)) {
