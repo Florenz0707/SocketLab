@@ -7,7 +7,7 @@
 #include <fcntl.h>
 
 #define ECHO_PORT 9999
-#define BUF_SIZE 4096
+#define BUF_SIZE 8192
 #define SAMPLE_DIR "samples"
 
 int main(int argc, char *argv[]) {

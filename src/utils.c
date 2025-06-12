@@ -9,6 +9,8 @@
 #include "utils.h"
 #include "parse.h"
 
+#define BUF_SIZE 8192
+
 const char *http_version = "HTTP/1.1";
 
 const char *RESPONSE_400 = "HTTP/1.1 400 Bad request\r\n\r\n";
@@ -48,22 +50,37 @@ void log_access(const char *request, const char *status) {
 }
 
 void response_echo(int client_sock, char *recv_buf) {
+    /*
+     * echo back
+     */
     Send_nbytes(client_sock, recv_buf, strlen(recv_buf));
 }
 
 void response400(int client_sock) {
+    /*
+     * Bad Request
+     */
     Send_nbytes(client_sock, RESPONSE_400, strlen(RESPONSE_400));
 }
 
 void response404(int client_sock) {
+    /*
+     * Not found
+     */
     Send_nbytes(client_sock, RESPONSE_404, strlen(RESPONSE_404));
 }
 
 void response501(int client_sock) {
+    /*
+     * Not Implemented
+     */
     Send_nbytes(client_sock, RESPONSE_501, strlen(RESPONSE_501));
 }
 
 void response505(int client_sock) {
+    /*
+     * HTTP Version not supported
+     */
     Send_nbytes(client_sock, RESPONSE_505, strlen(RESPONSE_505));
 }
 
@@ -87,39 +104,37 @@ int send_nbytes(int sock, const void *p, int nbytes) {
 void Send_nbytes(int sock, const void *ptr, int nbytes) {
     if (send_nbytes(sock, ptr, nbytes) == 0) return;
 
-    printf("send_nbytes error\n");
+    fprintf(stdout, "send_nbytes error\n");
 }
 
 void handle_request(int client_sock, char *recv_buf, size_t readret) {
-    printf("Handling request...\n");
+    fprintf(stdout, "Handling request...\n");
     Request *request = parse(recv_buf, readret, client_sock);
     if (request == NULL) {
-        printf("Request parsing failed\n");
+        fprintf(stdout, "Request parsing failed\n");
         response400(client_sock);
         log_error("Request parsing failed");
         return;
     }
 
-    printf("Request method: %s\n", request->http_method);
-    printf("Request URI: %s\n", request->http_uri);
+    fprintf(stdout, "Request method: %s\n", request->http_method);
+    fprintf(stdout, "Request URI: %s\n", request->http_uri);
 
     if (strcmp(request->http_version, http_version) != 0) {
         response505(client_sock);
         log_error("Unsupported HTTP version");
-        return;
-    }
-
-    if (strcmp(request->http_method, "GET") == 0) {
+    } else if (strcmp(request->http_method, "GET") == 0) {
         handle_get(client_sock, request);
     } else if (strcmp(request->http_method, "HEAD") == 0) {
         handle_head(client_sock, request);
-    } else if (strcmp(request->http_method, "POST") == 0) {
+    } else if (strcmp(request->http_method, "POST") == 0){
         response_echo(client_sock, recv_buf);
         handle_post(client_sock, request);
     } else {
         response501(client_sock);
-        log_error("Unsupported method");
+        log_error("Not Implemented");
     }
+
     free(request->headers);
     free(request);
 }
@@ -132,25 +147,22 @@ void handle_get(int client_sock, Request *request) {
     if (stat(fullpath, &file_stat) == -1) {
         if (access(fullpath, F_OK) < 0) {
             response404(client_sock);
-            return 0;
+            return;
         }
     }
 
     if (S_ISDIR(file_stat.st_mode)) {
-        char new_path[1024];
-        snprintf(new_path, sizeof(new_path), "%s/index.html", fullpath);
-        if (stat(new_path, &file_stat) == -1) {
-            response404(client_sock);
-            return 0;
-        }
-        snprintf(fullpath, sizeof(fullpath), "./static_site%s", request->http_uri);
         strcat(fullpath, "/index.html");
+        if (stat(fullpath, &file_stat) == -1) {
+            response404(client_sock);
+            return;
+        }
     }
 
     int file_fd = open(fullpath, O_RDONLY);
     if (access(fullpath, F_OK) < 0) {
         response404(client_sock);
-        return 0;
+        return;
     }
 
     char response[4096];
@@ -180,19 +192,16 @@ void handle_head(int client_sock, Request *request) {
     struct stat file_stat;
 
     if (S_ISDIR(file_stat.st_mode)) {
-        char new_path[1024];
-        snprintf(new_path, sizeof(new_path), "%s/index.html", fullpath);
-        if (stat(new_path, &file_stat) == -1) {
-            response404(client_sock);
-            return 0;
-        }
-        snprintf(fullpath, sizeof(fullpath), "./static_site%s", request->http_uri);
         strcat(fullpath, "/index.html");
+        if (stat(fullpath, &file_stat) == -1) {
+            response404(client_sock);
+            return;
+        }
     }
 
     if (access(fullpath, F_OK) < 0) {
         response404(client_sock);
-        return 0;
+        return;
     }
 
     char response[4096];
