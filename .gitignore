@@ -17,5 +17,7 @@ src/y.tab.h
 
 # log
 wget-log
+access.log
+error.log
 
 instruction.pdf

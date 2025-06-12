@@ -106,20 +106,20 @@ void handle_request(int client_sock, char *recv_buf, size_t readret) {
     if (strcmp(request->http_version, http_version) != 0) {
         response505(client_sock);
         log_error("Unsupported HTTP version");
-    } else {
-        if (strcmp(request->http_method, "GET") == 0) {
-            handle_get(client_sock, request);
-        } else if (strcmp(request->http_method, "HEAD") == 0) {
-            handle_head(client_sock, request);
-        } else if (strcmp(request->http_method, "POST") == 0) {
-            response_echo(client_sock, recv_buf);
-            handle_post(client_sock, request);
-        } else {
-            response501(client_sock);
-            log_error("Unsupported method");
-        }
+        return;
     }
 
+    if (strcmp(request->http_method, "GET") == 0) {
+        handle_get(client_sock, request);
+    } else if (strcmp(request->http_method, "HEAD") == 0) {
+        handle_head(client_sock, request);
+    } else if (strcmp(request->http_method, "POST") == 0) {
+        response_echo(client_sock, recv_buf);
+        handle_post(client_sock, request);
+    } else {
+        response501(client_sock);
+        log_error("Unsupported method");
+    }
     free(request->headers);
     free(request);
 }
