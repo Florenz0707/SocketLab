@@ -1,0 +1,231 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <time.h>
+#include "utils.h"
+#include "parse.h"
+
+const char *http_version = "HTTP/1.1";
+
+const char *RESPONSE_400 = "HTTP/1.1 400 Bad request\r\n\r\n";
+const char *RESPONSE_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
+const char *RESPONSE_501 = "HTTP/1.1 501 Not Implemented\r\n\r\n";
+const char *RESPONSE_505 = "HTTP/1.1 505 HTTP Version not supported\r\n\r\n";
+
+FILE *error_log = NULL;
+FILE *access_log = NULL;
+
+void init_logs() {
+    error_log = fopen("error.log", "a");
+    access_log = fopen("access.log", "a");
+}
+
+void log_error(const char *message) {
+    if (error_log == NULL) return;
+
+    fprintf(error_log, "%s\n", message);
+    fflush(error_log);
+}
+
+void log_access(const char *request, const char *status) {
+    if (access_log == NULL) return;
+
+    time_t rawtime;
+    struct tm *timeinfo;
+    char buffer[80];
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+
+    strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
+
+    fprintf(access_log, "%s - - [%s] \"%s\" %s\n", "127.0.0.1", buffer, request, status);
+    fflush(access_log);
+}
+
+void response_echo(int client_sock, char *recv_buf) {
+    Send_nbytes(client_sock, recv_buf, strlen(recv_buf));
+}
+
+void response400(int client_sock) {
+    Send_nbytes(client_sock, RESPONSE_400, strlen(RESPONSE_400));
+}
+
+void response404(int client_sock) {
+    Send_nbytes(client_sock, RESPONSE_404, strlen(RESPONSE_404));
+}
+
+void response501(int client_sock) {
+    Send_nbytes(client_sock, RESPONSE_501, strlen(RESPONSE_501));
+}
+
+void response505(int client_sock) {
+    Send_nbytes(client_sock, RESPONSE_505, strlen(RESPONSE_505));
+}
+
+int send_nbytes(int sock, const void *p, int nbytes) {
+    size_t left_bytes = nbytes;
+    ssize_t sent_bytes = 0;
+    const char *ptr = p;
+
+    while (left_bytes > 0) {
+        sent_bytes = send(sock, ptr, left_bytes, 0);
+        if (sent_bytes == -1) {
+            perror("send failed");
+            return -1;
+        }
+        ptr += sent_bytes;
+        left_bytes -= sent_bytes;
+    }
+    return 0;
+}
+
+void Send_nbytes(int sock, const void *ptr, int nbytes) {
+    if (send_nbytes(sock, ptr, nbytes) == 0) return;
+
+    printf("send_nbytes error\n");
+}
+
+void handle_request(int client_sock, char *recv_buf, size_t readret) {
+    printf("Handling request...\n");
+    Request *request = parse(recv_buf, readret, client_sock);
+    if (request == NULL) {
+        printf("Request parsing failed\n");
+        response400(client_sock);
+        log_error("Request parsing failed");
+        return;
+    }
+
+    printf("Request method: %s\n", request->http_method);
+    printf("Request URI: %s\n", request->http_uri);
+
+    if (strcmp(request->http_version, http_version) != 0) {
+        response505(client_sock);
+        log_error("Unsupported HTTP version");
+    } else {
+        if (strcmp(request->http_method, "GET") == 0) {
+            handle_get(client_sock, request);
+        } else if (strcmp(request->http_method, "HEAD") == 0) {
+            handle_head(client_sock, request);
+        } else if (strcmp(request->http_method, "POST") == 0) {
+            response_echo(client_sock, recv_buf);
+            handle_post(client_sock, request);
+        } else {
+            response501(client_sock);
+            log_error("Unsupported method");
+        }
+    }
+
+    free(request->headers);
+    free(request);
+}
+
+void handle_get(int client_sock, Request *request) {
+    char fullpath[1024];
+    snprintf(fullpath, sizeof(fullpath), "./static_site%s", request->http_uri);
+
+    struct stat file_stat;
+    if (stat(fullpath, &file_stat) == -1) {
+        if (access(fullpath, F_OK) < 0) {
+            response404(client_sock);
+            return 0;
+        }
+    }
+
+    if (S_ISDIR(file_stat.st_mode)) {
+        char new_path[1024];
+        snprintf(new_path, sizeof(new_path), "%s/index.html", fullpath);
+        if (stat(new_path, &file_stat) == -1) {
+            response404(client_sock);
+            return 0;
+        }
+        snprintf(fullpath, sizeof(fullpath), "./static_site%s", request->http_uri);
+        strcat(fullpath, "/index.html");
+    }
+
+    int file_fd = open(fullpath, O_RDONLY);
+    if (access(fullpath, F_OK) < 0) {
+        response404(client_sock);
+        return 0;
+    }
+
+    char response[4096];
+    snprintf(response, sizeof(response),
+             "HTTP/1.1 200 OK\r\n"
+             "Content-Length: %ld\r\n"
+             "Content-Type: %s\r\n"
+             "\r\n",
+             file_stat.st_size, get_mime_type(fullpath));
+
+    Send_nbytes(client_sock, response, strlen(response));
+
+    char buffer[1024];
+    ssize_t bytes_read;
+    while ((bytes_read = read(file_fd, buffer, sizeof(buffer))) > 0) {
+        Send_nbytes(client_sock, buffer, bytes_read);
+    }
+
+    close(file_fd);
+    log_access(request->http_uri, "200");
+}
+
+void handle_head(int client_sock, Request *request) {
+    char fullpath[1024];
+    snprintf(fullpath, sizeof(fullpath), "./static_site%s", request->http_uri);
+
+    struct stat file_stat;
+
+    if (S_ISDIR(file_stat.st_mode)) {
+        char new_path[1024];
+        snprintf(new_path, sizeof(new_path), "%s/index.html", fullpath);
+        if (stat(new_path, &file_stat) == -1) {
+            response404(client_sock);
+            return 0;
+        }
+        snprintf(fullpath, sizeof(fullpath), "./static_site%s", request->http_uri);
+        strcat(fullpath, "/index.html");
+    }
+
+    if (access(fullpath, F_OK) < 0) {
+        response404(client_sock);
+        return 0;
+    }
+
+    char response[4096];
+    snprintf(response, sizeof(response),
+             "HTTP/1.1 200 OK\r\n"
+             "Content-Length: %ld\r\n"
+             "Content-Type: %s\r\n"
+             "\r\n",
+             file_stat.st_size, get_mime_type(fullpath));
+
+    Send_nbytes(client_sock, response, strlen(response));
+    log_access(request->http_uri, "200");
+}
+
+void handle_post(int client_sock, Request *request) {
+    log_access(request->http_uri, "200");
+}
+
+const char *get_mime_type(const char *filename) {
+    const char *ext = strrchr(filename, '.');
+    if (ext == NULL)
+        return "application/octet-stream";
+
+    if (strcmp(ext, ".html") == 0)
+        return "text/html";
+    if (strcmp(ext, ".css") == 0)
+        return "text/css";
+    if (strcmp(ext, ".png") == 0)
+        return "image/png";
+    if (strcmp(ext, ".jpeg") == 0 || strcmp(ext, ".jpg") == 0)
+        return "image/jpeg";
+    if (strcmp(ext, ".gif") == 0)
+        return "image/gif";
+
+    return "application/octet-stream";
+}

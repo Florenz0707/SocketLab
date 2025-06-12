@@ -1,4 +1,21 @@
 # Scripts
 *.sh
+
+# Directory
 .idea/
 obj/
+
+# Executable files
+echo_client
+echo_server
+example
+
+# Compiled files
+src/lex.yy.c
+src/y.tab.c
+src/y.tab.h
+
+# log
+wget-log
+
+instruction.pdf

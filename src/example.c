@@ -8,7 +8,7 @@
 #include "parse.h"
 
 int main(int argc, char **argv) {
-    //Read from the file the sample
+    // Read from the file the sample
     if (argc < 2) {
         printf("Usage: %s <file>\n", argv[0]);
         return 0;
