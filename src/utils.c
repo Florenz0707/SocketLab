@@ -4,6 +4,9 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <time.h>
 #include "utils.h"
@@ -151,7 +154,7 @@ void handle_request(int client_sock, char *recv_buf, size_t readret) {
         handle_get(client_sock, request);
     } else if (strcmp(request->http_method, "HEAD") == 0) {
         handle_head(client_sock, request);
-    } else if (strcmp(request->http_method, "POST") == 0){
+    } else if (strcmp(request->http_method, "POST") == 0) {
         response_echo(client_sock, recv_buf);
         handle_post(client_sock, request);
     } else {
@@ -261,4 +264,71 @@ const char *get_mime_type(const char *filename) {
         return "image/gif";
 
     return "application/octet-stream";
+}
+
+void init_pool(int client_fd, ClientPool *client_pool) {
+    FD_ZERO(&client_pool->all_fd);
+    FD_SET(client_fd, &client_pool->all_fd);
+    client_pool->listen_fd = client_fd;
+    memset(client_pool->client_fds, -1, sizeof(client_pool->client_fds));
+}
+
+void add2pool(int client_fd, ClientPool *client_pool) {
+    for (int i = 0; i < MAX_CLIENT_NUM; ++i) {
+        if (client_pool->client_fds[i] == -1) {
+            client_pool->client_fds[i] = client_fd;
+            FD_SET(client_fd, &client_pool->all_fd);
+            break;
+        }
+    }
+}
+
+void remove2pool(int client_fd, ClientPool *client_pool) {
+    for (int i = 0; i < MAX_CLIENT_NUM; ++i) {
+        if (client_pool->client_fds[i] == client_fd) {
+            client_pool->client_fds[i] = -1;
+            FD_CLR(client_fd, &client_pool->all_fd);
+            close(client_fd);
+            break;
+        }
+    }
+}
+
+void handle_pool(ClientPool *client_pool) {
+    char buf[BUF_SIZE];
+    while (1) {
+        client_pool->read_fd = client_pool->all_fd;
+        int result = select(FD_SETSIZE, &client_pool->read_fd, NULL, NULL, NULL);
+        if (result == -1) {
+            perror("select failed");
+            continue;
+        }
+        for (int i = 0; i < FD_SETSIZE; ++i) {
+            if (FD_ISSET(i, &client_pool->read_fd)) {
+                if (i == client_pool->listen_fd) {
+                    // New Connection
+                    struct sockaddr_in client_addr;
+                    socklen_t client_len = sizeof(client_addr);
+                    int client_fd = accept(client_pool->listen_fd, (struct sockaddr *) &client_addr, &client_len);
+                    if (client_fd < 0) {
+                        perror("accept failed");
+                        continue;
+                    }
+                    add2pool(client_fd, client_pool);
+                    fprintf(stdout, "New connection from %s:%d\n",
+                            inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+                } else {
+                    // handle request
+                    memset(buf, 0, BUF_SIZE);
+                    ssize_t bytes_received = recv(i, buf, BUF_SIZE, 0);
+                    if (bytes_received <= 0) remove2pool(i, client_pool);
+                    else {
+                        buf[bytes_received] = '\0';
+                        printf("Received from client %d: %s\n", i, buf);
+                        handle_request(i, buf, bytes_received);
+                    }
+                }
+            }
+        }
+    }
 }

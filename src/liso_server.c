@@ -78,41 +78,45 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    char buf[BUF_SIZE];
-    socklen_t cli_size;
-    struct sockaddr_in cli_addr;
+    ClientPool client_pool;
+    init_pool(sock, &client_pool);
+    handle_pool(&client_pool);
 
-    while (1) {
-        cli_size = sizeof(cli_addr);
-        fprintf(stdout, "Waiting for connection...\n");
-        int client_sock = accept(sock, (struct sockaddr *) &cli_addr, &cli_size);
-        if (client_sock == -1) {
-            fprintf(stderr, "Error accepting connection.\n");
-            close_socket(sock);
-            return EXIT_FAILURE;
-        }
-        fprintf(stdout, "New connection from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
-
-        while (1) {
-            memset(buf, 0, BUF_SIZE);
-            int readret = recv(client_sock, buf, BUF_SIZE, 0);
-            if (readret < 0) break;
-            if (readret == 0) {
-                fprintf(stdout, "Client disconnected.\n");
-                break;
-            }
-            fprintf(stdout, "Received (total %d bytes): %s\n", readret, buf);
-            // handle_request(client_sock, buf, readret);
-            pipelining(client_sock, buf, readret);
-        }
-
-        if (close_socket(client_sock)) {
-            close_socket(sock);
-            fprintf(stderr, "Error closing client socket.\n");
-            return EXIT_FAILURE;
-        }
-        fprintf(stdout, "Closed connection from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
-    }
+//    char buf[BUF_SIZE];
+//    socklen_t cli_size;
+//    struct sockaddr_in cli_addr;
+//
+//    while (1) {
+//        cli_size = sizeof(cli_addr);
+//        fprintf(stdout, "Waiting for connection...\n");
+//        int client_sock = accept(sock, (struct sockaddr *) &cli_addr, &cli_size);
+//        if (client_sock == -1) {
+//            fprintf(stderr, "Error accepting connection.\n");
+//            close_socket(sock);
+//            return EXIT_FAILURE;
+//        }
+//        fprintf(stdout, "New connection from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+//
+//        while (1) {
+//            memset(buf, 0, BUF_SIZE);
+//            int readret = recv(client_sock, buf, BUF_SIZE, 0);
+//            if (readret < 0) break;
+//            if (readret == 0) {
+//                fprintf(stdout, "Client disconnected.\n");
+//                break;
+//            }
+//            fprintf(stdout, "Received (total %d bytes): %s\n", readret, buf);
+//            // handle_request(client_sock, buf, readret);
+//            pipelining(client_sock, buf, readret);
+//        }
+//
+//        if (close_socket(client_sock)) {
+//            close_socket(sock);
+//            fprintf(stderr, "Error closing client socket.\n");
+//            return EXIT_FAILURE;
+//        }
+//        fprintf(stdout, "Closed connection from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+//    }
 
     close_socket(sock);
     return EXIT_SUCCESS;
