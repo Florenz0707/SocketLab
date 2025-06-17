@@ -37,42 +37,6 @@ void handle_sigpipe(const int sig) {
 }
 
 static Request *resolve(const char *buffer, int size) {
-//    enum {
-//        STATE_START, STATE_CR, STATE_CRLF, STATE_CRLFCR, STATE_CRLFCRLF
-//    };
-//
-//    char buf[8192] = {0};
-//    int i = 0, offset = 0;
-//    int state = STATE_START;
-//
-//    /* First line */
-//    while (state != STATE_CRLFCRLF && i < size) {
-//        char expect = 0;
-//        const char next = buffer[i++];
-//        buf[offset++] = next;
-//        switch (state) {
-//            case STATE_START:
-//            case STATE_CRLF:
-//                expect = '\r';
-//                break;
-//            case STATE_CR:
-//            case STATE_CRLFCR:
-//                expect = '\n';
-//                break;
-//            default:
-//                state = STATE_START;
-//                continue;
-//        }
-//
-//        if (next == expect) state++;
-//        else state = STATE_START;
-//    }
-//
-//    if (state != STATE_CRLFCRLF) {
-//        fprintf(stdout, "Not reach STATE_CRLFCRLF, current state: %d\n", state);
-//        return NULL;
-//    }
-
     Request *request = malloc(sizeof(Request));
     request->header_count = 0;
     request->headers = (Request_header *) malloc(sizeof(Request_header) * 1);
@@ -193,7 +157,6 @@ int main(int argc, char *argv[]) {
             if (status == 0) {
                 fprintf(stdout, "Good Request, echo back\n");
                 strcpy(msg, buf);
-                strcat(msg, "(echo back)\r\n");
             } else if (status == 1) {
                 fprintf(stdout, "Not Implemented\n");
                 strcpy(msg, "HTTP/1.1 501 Not Implemented\r\n\r\n");

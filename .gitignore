@@ -1,4 +1,12 @@
 # Scripts
 *.sh
+
 .idea/
 obj/
+
+/src/lex.yy.c
+/src/y.tab.h
+/src/y.tab.c
+/echo_client
+/echo_server
+/example
