@@ -96,13 +96,12 @@ int main(int argc, char *argv[]) {
         while (1) {
             memset(buf, 0, BUF_SIZE);
             int readret = recv(client_sock, buf, BUF_SIZE, 0);
-            if (readret < 0)
-                break;
+            if (readret < 0) break;
             if (readret == 0) {
                 fprintf(stdout, "Client disconnected.\n");
                 break;
             }
-            fprintf(stdout, "Received (total %d bytes): %s\n", readret, buf);
+            fprintf(stdout, "Received (total %d bytes): \n%s\n", readret, buf);
             handle_request(client_sock, buf, readret);
         }
 

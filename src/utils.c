@@ -152,7 +152,7 @@ void handle_get(int client_sock, Request *request) {
     }
 
     if (S_ISDIR(file_stat.st_mode)) {
-        strcat(fullpath, "/index.html");
+        strcat(fullpath, "/index.html\0");
         if (stat(fullpath, &file_stat) == -1) {
             response404(client_sock);
             return;
@@ -190,9 +190,15 @@ void handle_head(int client_sock, Request *request) {
     snprintf(fullpath, sizeof(fullpath), "./static_site%s", request->http_uri);
 
     struct stat file_stat;
+    if (stat(fullpath, &file_stat) == -1) {
+        if (access(fullpath, F_OK) < 0) {
+            response404(client_sock);
+            return;
+        }
+    }
 
     if (S_ISDIR(file_stat.st_mode)) {
-        strcat(fullpath, "/index.html");
+        strcat(fullpath, "/index.html\0");
         if (stat(fullpath, &file_stat) == -1) {
             response404(client_sock);
             return;
