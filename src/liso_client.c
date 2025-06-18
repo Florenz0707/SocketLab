@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
 
     int bytes_received;
     fprintf(stdout, "Receive: \n");
-    while ((bytes_received = recv(sock, buf, BUF_SIZE, 0)) > 0) {
+    if ((bytes_received = recv(sock, buf, BUF_SIZE, 0)) > 0) {
         buf[bytes_received] = '\0';
         fprintf(stdout, "%s", buf);
     }

@@ -151,7 +151,7 @@ void handle_request(int client_sock, char *recv_buf, size_t readret) {
         handle_get(client_sock, request);
     } else if (strcmp(request->http_method, "HEAD") == 0) {
         handle_head(client_sock, request);
-    } else if (strcmp(request->http_method, "POST") == 0){
+    } else if (strcmp(request->http_method, "POST") == 0) {
         response_echo(client_sock, recv_buf);
         handle_post(client_sock, request);
     } else {
