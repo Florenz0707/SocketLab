@@ -304,29 +304,28 @@ void handle_pool(ClientPool *client_pool) {
             continue;
         }
         for (int i = 0; i < FD_SETSIZE; ++i) {
-            if (FD_ISSET(i, &client_pool->read_fd)) {
-                if (i == client_pool->listen_fd) {
-                    // New Connection
-                    struct sockaddr_in client_addr;
-                    socklen_t client_len = sizeof(client_addr);
-                    int client_fd = accept(client_pool->listen_fd, (struct sockaddr *) &client_addr, &client_len);
-                    if (client_fd < 0) {
-                        perror("accept failed");
-                        continue;
-                    }
-                    add2pool(client_fd, client_pool);
-                    fprintf(stdout, "New connection from %s:%d\n",
-                            inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-                } else {
-                    // handle request
-                    memset(buf, 0, BUF_SIZE);
-                    ssize_t bytes_received = recv(i, buf, BUF_SIZE, 0);
-                    if (bytes_received <= 0) remove2pool(i, client_pool);
-                    else {
-                        buf[bytes_received] = '\0';
-                        printf("Received from client %d: %s\n", i, buf);
-                        handle_request(i, buf, bytes_received);
-                    }
+            if (!FD_ISSET(i, &client_pool->read_fd)) continue;
+            if (i == client_pool->listen_fd) {
+                // New Connection
+                struct sockaddr_in client_addr;
+                socklen_t client_len = sizeof(client_addr);
+                int client_fd = accept(client_pool->listen_fd, (struct sockaddr *) &client_addr, &client_len);
+                if (client_fd < 0) {
+                    perror("accept failed");
+                    continue;
+                }
+                add2pool(client_fd, client_pool);
+                fprintf(stdout, "New connection from %s:%d\n",
+                        inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+            } else {
+                // handle request
+                memset(buf, 0, BUF_SIZE);
+                ssize_t bytes_received = recv(i, buf, BUF_SIZE, 0);
+                if (bytes_received <= 0) remove2pool(i, client_pool);
+                else {
+                    buf[bytes_received] = '\0';
+                    printf("Received from client %d: %s\n", i, buf);
+                    handle_request(i, buf, bytes_received);
                 }
             }
         }

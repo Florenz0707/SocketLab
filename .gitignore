@@ -6,8 +6,8 @@
 obj/
 
 # Executable files
-liso_client
-liso_server
+echo_client
+echo_server
 example
 
 # Compiled files
@@ -19,5 +19,6 @@ src/y.tab.h
 wget-log
 access.log
 error.log
+result.txt
 
 instruction.pdf
